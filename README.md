@@ -1,56 +1,138 @@
-# fidectus-code-sample
-This repository is a starting point for submitting a code sample to Fidectus. It contains a basic 
-Java application to get you started, and some instructions on what we are looking for you to implement as a sample. We ask
-that you fork this repository, and modify your fork as needed.
+# Fidectus project
 
-# Coding Exercise
+## Project Structure
+```
+|-- main    : Prodcution code
+|   |-- java/com/fidectus/eventlog
+|   |   |-- config      : Code for loading config and Bean init
+|   |   |-- controller  : Entry point for handling/validating requests 
+|   |   |-- dto         : Data Transfer Objects for marshalling to/from JSON
+|   |   |-- services    : Main code logic for handling with requests and external APIs 
+|   |   `-- Application  : Entry point for Spring Boot init
+|   `-- resources
+|       `-- application.properties : Config keys
+`-- test    : Test code
+    `-- java/com/fidectus/eventlog
+        |-- config      : Code for mock/spy Beans init
+        |-- integration : Integration tests for Application 
+        `-- service     : Service tests for Application 
+```
 
-##  Problem Statement
-Implement an "event log" RESTful API. 
+## Installation / Requirements
+* Java 11  - and appropriate environment variables set such as `$JAVA_HOME`.
+* Maven 3 - `mvn` binary path will need to be set on your `$PATH` environment variable.
 
-The API allows other services to log 
-simple events such as user registration errors.
-Focus is on the service itself and not non-functional 
-requirements such as authentication.
+Optionally, there is a `mvnw` in the root of the repo. This can be used in place of your own Maven installation.
+Also, you can import the project into IntelliJ and compile/run tests via the IDE.
 
-## Technology Stack
-This application should use the following:
-* Java 11 or greater
-* Spring Boot
-* Maven
+All other dependencies will be downloaded during build, such as Spring Boot, Mockito, etc.
 
-## Events
-Events are made up of the following fields, all of which are required:
-* A unique event ID
-* An event type
-  * Event types should be limited to
-    * User registration
-    * User deleted
-    * User deactivated
-    * User updated registration information
-* A user ID
-* The time the event took place
-* An event hash, generated from the user id, time, and event type
+## Running
+To compile and run tests, execute this command in your shell/command prompt
+ 
+```shell script
+mvn clean verify
+```
 
+This will produce `/target/sample-event-log-app-0.1.0-SNAPSHOT.jar`. To run the Spring Boot application, execute
 
-## API Specification
-* The API should provide a way to get events by a given ID, a way to create new events, and a way to search for events by a given user id.
-* The API should not provide any means up updating or deleting events, as this log is meant to be immutable to consumers.
-* The API should only support JSON
-* The API should enforce required fields
+```shell script
+java -jar target/sample-event-log-app-0.1.0-SNAPSHOT.jar
+```
 
-## Storage Requirements
-This application should be capable of storing data in memory -- save data as you see fit:
+This will start the Spring Boot application on `http://localhost:8080` by default.
+I recommend using [Postman](https://www.getpostman.com/) to send requests to the application.
 
-1. A simple Spring Data/In memory database solution
-   - https://spring.io/guides/gs/accessing-data-jpa/ and https://spring.io/guides/gs/accessing-data-rest/ provide excellent samples of this
-2. If you are not familiar with Spring Data/storage, feel free to implement your own. This can be as simple as an ArrayList or similar that
-stores events, or something of your own design.
+## Endpoints
+### POST `{host}/api/v1/event`
+This endpoint creates an entry in the database for the submitted Event and returns the Event .
 
-The objective here is to simply persist events by any means necessary, focus on well-written code and component architecture rather than persistence.
+The request body must be of content type `application/json` and the JSON in the body must be in the following format with all fields mandatory:
+```json
+{
+  "eventId": "<UUID>",
+  "eventType": "<element on [USER_REGISTRATION, USER_DELETED, USER_DEACTIVATED, USER_UPDATED_REGISTRATION_INFO]>",
+  "userId": "<UUID>",
+  "time": "<Date-Time in the format of 2020-01-01T23:59 (ISO-8601)>"
+}
+```
+Additional fields will be ignored and/or overwritten if present. 
+I made the assumption that the caller to the API will generate the `eventId`, although as it is a UUID, the chance of collisions is negligible.
 
-## Testing requirements
-We are looking for you to implement well tested code for this sample so unit and integration tests are in scope.
+If successfully created in the database, the API will return a `201 CREATED` along with the Event in the DB.
 
-The jacoco plugin is provided to view unit test coverage report. Note that this does not mean we expect
-100% coverage, but we do ask that you implement what you feel is reasonable.
+If the JSON is malformed or missing fields, the API returns a `400 BAD REQUEST`.
+
+Event JSON returned
+```json
+{
+  "eventId": "<UUID>",
+  "eventType": "<element on [USER_REGISTRATION, USER_DELETED, USER_DEACTIVATED, USER_UPDATED_REGISTRATION_INFO]>",
+  "userId": "<UUID>",
+  "time": "<Date-Time in the format of 2020-01-01T23:59 (ISO-8601)>",
+  "eventHash": "Integer hash of the event generated from the eventType, userId, and time"
+}
+```
+
+### GET `{host}/api/v1/event/{eventId}`
+This endpoint queries the database and retrieves the Event with the supplied `eventId` (in valid UUID format).
+If not found, the endpoint returns a `404 NOT FOUND` status. 
+
+JSON returned is of the same format as the POST endpoint.
+
+### GET `{host}/api/v1/event/user/{userId}`
+This endpoint queries the database and retrieves all Events that belong to the supplied `userId` (in valid UUID format).
+If none are found, the endpoint simply returns an empty list with `200 OK` status.
+
+JSON returned (Events in list format)
+```json
+[
+   {"eventId": "..."},
+   {"eventId": "..."},
+   {"eventId": "..."} 
+]
+```
+
+## Known Bugs
+SpotBugs is enabled on this project for static analysis. Execute 
+```shell script
+mvn clean verify
+``` 
+and provided all tests pass, then execute 
+```shell script
+mvn spotbugs:gui
+``` 
+to bring up a GUI for inspecting what bugs exist in the code. 
+
+Currently SpotBugs identifies 2 bugs as `Unconfirmed cast from Throwable` where `Throwable` is cast to specific exceptions
+in the `handleException()` method in `EventLogV1Controller.java`. As there are checks beforehand using `instanceof` to ensure
+that a cast is suitable, this seems like a limitation of SpotBugs.
+
+## Testing
+The repo contains two test suites for the application, integration and service.
+
+In the service tests, external calls are mocked out (such as to the database) and expected results given.
+
+In the integration tests, an actual in-memory DB (Spring JPA) is used and the DB is checked after the POST call to ensure 
+that the Event has been created successfully in there.
+
+#### Test Suites
+My method of testing this API is to do full service tests, that is, we send a crafted request to our microservice instance, and put expectations on what the response should be.
+This method can cut down on the amount of extraneous unit testing that is done at the class level, and allows us to change the internal workings of the API without having to change a
+bunch of unit tests at the same time, so long as the API response remains the same expected value.
+ 
+Various Spring Beans (from `EventLogConfig`) will be mocked/spied in different test suites, meaning we can have them return whatever we choose to.
+We can also verify when these mock beans are called with specific parameters and how many times.
+This is done using the Mockito framework.
+
+## Code coverage
+The test suites were run through IntelliJ with code coverage turned on. 
+The main areas lacking are around exception handling in the `EventRepositoryDao`. 
+As the docs around the `CrudRepository` exceptions thrown are a bit lacking, I included some extra exceptions that may not occur in production usage.
+
+| Classes               |   Line Coverage   |
+|-----------------------|:-----------------:|
+| EventLogV1Controller  |        97%        |
+| EventLogService       |        100%       |
+| EventRepositoryDao    |        53%        |
+| Overall               |        74%        |
