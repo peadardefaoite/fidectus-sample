@@ -137,3 +137,10 @@ As the docs around the `CrudRepository` exceptions thrown are a bit lacking, I i
 | EventLogService       |        100%       |
 | EventRepositoryDao    |        53%        |
 | Overall               |        74%        |
+
+## Potential improvements
+
+* The `eventHash` field of `Event.java` could be more complex than a simple integer `Objects.hash()`, using something like SHA-256.
+I decided to keep it simple at the risk of premature optimisation, given the unknowns regarding the likely number of Events this service will deal with.
+* The `eventId` field of `Event.java` would make more logical sense to be handled by this service if its job is to log Events and then
+return the generated value to the caller when it's created in the DB.
