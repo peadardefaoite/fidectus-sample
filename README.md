@@ -115,6 +115,7 @@ In the service tests, external calls are mocked out (such as to the database) an
 
 In the integration tests, an actual in-memory DB (Spring JPA) is used and the DB is checked after the POST call to ensure 
 that the Event has been created successfully in there.
+The two GET APIs are then called (which will make calls to the DB for Events retrieval) and their results are compared to the expected results.
 
 #### Test Suites
 My method of testing this API is to do full service tests, that is, we send a crafted request to our microservice instance, and put expectations on what the response should be.
